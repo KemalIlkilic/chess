@@ -1,7 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status, HTTPException
 from pydantic import BaseModel
 from random import randrange
-import datetime
 
 app = FastAPI()
 
@@ -10,19 +9,22 @@ class Player(BaseModel):
     name: str
     country: str
     live_rating : float
-    age: int
     world_rank : int
-    created_at: datetime.datetime = datetime.datetime.now().strftime("%Y-%m-%d-%H.%M")
-    rating_difference: float | None = None
 
 #example of data
-players = [{"id": 1, "name": "Magnus Carlsen", "country": "Norway", "live_rating": 2847, "age": 30, "world_rank": 1, "created_at": "2023-12-14-22.30",},
-               {"id": 2, "name": "Fabiano Caruana", "country": "USA", "live_rating": 2820, "age": 28, "world_rank": 2, "created_at": "2023-12-14-22.31"},]
+players = [{"name": "Magnus Carlsen", "country": "Norway", "live_rating": 2847,  "world_rank": 1, "id": 1},
+           {"name": "Fabiano Caruana", "country": "USA", "live_rating": 2820,  "world_rank": 2, "id": 2}]
 
 def find_player(id):
     for player in players:
         if player["id"] == id:
             return player
+        
+def find_index_player(id):
+    for index, player in enumerate(players):
+        if player['id'] == id:
+            return index
+    return None
 
 
 
@@ -35,12 +37,34 @@ def get_players():
     return {"data" : players}
 
 @app.post("/players")
-def create_players(player : Player):
+def create_players(player : Player, status_code= status.HTTP_201_CREATED):
     player_dict = player.model_dump()
     player_dict["id"] = randrange(1,100000)
+    players.append(player_dict)
     return {"player" :player_dict} #goes back to client as HTTP response
 
 @app.get("/players/{id}")
 def get_player(id : int):
     player = find_player(id)
+    if player is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"player with id: {id} was not found")
     return {"player" : player}
+
+@app.delete("/players/{id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_player(id : int):
+    index = find_index_player(id)
+    if index is None: 
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"player with id: {id} was not found")
+    players.pop(index)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@app.put("/players/{id}")
+def update_player(id : int, player : Player):
+    index = find_index_player(id)
+    if index is None: 
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"player with id: {id} was not found")
+    player_dict = player.model_dump()
+    player_dict["id"] = id
+    players[index] = player_dict
+    return {"player" : player_dict}
+
